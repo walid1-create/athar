@@ -1,0 +1,23 @@
+import { Body, Controller, Post } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { AuthService } from './auth.service';
+import { LoginSuperAdminDto } from './dto/login-super-admin.dto';
+import { RegisterSuperAdminDto } from './dto/register-super-admin.dto';
+
+@ApiTags('auth')
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @ApiOperation({ summary: 'Register super admin' })
+  @Post('super-admin/register')
+  registerSuperAdmin(@Body() dto: RegisterSuperAdminDto) {
+    return this.authService.registerSuperAdmin(dto);
+  }
+
+  @ApiOperation({ summary: 'Login super admin and get JWT' })
+  @Post('super-admin/login')
+  loginSuperAdmin(@Body() dto: LoginSuperAdminDto) {
+    return this.authService.loginSuperAdmin(dto);
+  }
+}
