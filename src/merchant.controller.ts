@@ -6,36 +6,28 @@ import {
   Get,
   Param,
   Patch,
-  Post,
   Query,
-  UploadedFile,
   UseGuards,
-  UseInterceptors,
 } from '@nestjs/common';
 import { MerchantType } from '@prisma/client';
 import {
   ApiBearerAuth,
-  ApiBody,
-  ApiConsumes,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { CloudinaryService } from './common/cloudinary.service';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
-import { CreateMerchantDto } from './merchant/dto/create-merchant.dto';
+import { SuperAdminGuard } from './auth/super-admin.guard';
 import { UpdateMerchantDto } from './merchant/dto/update-merchant.dto';
 import { MerchantIntegrationService } from './merchant.integration.service';
 
-@ApiTags('merchants')
+@ApiTags('Merchants')
 @Controller('merchants')
 export class MerchantController {
   constructor(
     private readonly merchantIntegrationService: MerchantIntegrationService,
-    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
   @ApiOperation({ summary: 'Get all merchants' })
@@ -51,13 +43,9 @@ export class MerchantController {
       example: [
         {
           id: '11111111-1111-1111-1111-111111111111',
-          externalId: 'ext-market-001',
           name: 'Fresh Basket Market',
           merchantType: 'SUPERMARKET',
-          websiteUrl: 'https://api.freshbasket.example',
-          checkoutBaseUrl: 'https://api.freshbasket.example/checkout',
-          productsEndpoint: '/v1/products',
-          categoriesEndpoint: '/v1/categories',
+          imageUrl: 'https://example.com/merchant.jpg',
           isActive: true,
           createdAt: '2026-04-07T11:00:00.000Z',
           updatedAt: '2026-04-07T11:00:00.000Z',
@@ -81,52 +69,11 @@ export class MerchantController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Create merchant (super admin only)' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        name: { type: 'string' },
-        merchantType: {
-          type: 'string',
-          enum: Object.values(MerchantType),
-        },
-        websiteUrl: { type: 'string' },
-        externalId: { type: 'string' },
-        checkoutBaseUrl: { type: 'string' },
-        productsEndpoint: { type: 'string' },
-        categoriesEndpoint: { type: 'string' },
-        authType: { type: 'string' },
-        authConfig: { type: 'string', description: 'JSON string' },
-        isActive: { type: 'boolean' },
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
-      },
-      required: ['name', 'merchantType', 'websiteUrl'],
-    },
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiOperation({
+    summary:
+      'Edit merchant (super admin). New stores: POST /auth/merchant/register.',
   })
-  @Post()
-  @UseInterceptors(FileInterceptor('file'))
-  async createMerchant(
-    @Body() dto: CreateMerchantDto,
-    @UploadedFile() file?: { buffer: Buffer },
-  ) {
-    if (file && Buffer.isBuffer(file.buffer)) {
-      dto.imageUrl = await this.cloudinaryService.uploadImage(
-        file.buffer,
-        'athar/merchants',
-      );
-    }
-    return this.merchantIntegrationService.createMerchant(dto);
-  }
-
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Edit merchant with PATCH (super admin only)' })
   @ApiParam({ name: 'merchantId', type: String })
   @Patch(':merchantId')
   updateMerchant(
@@ -137,7 +84,7 @@ export class MerchantController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
   @ApiOperation({ summary: 'Delete merchant (super admin only)' })
   @ApiParam({ name: 'merchantId', type: String })
   @Delete(':merchantId')
@@ -147,7 +94,7 @@ export class MerchantController {
 
   @ApiOperation({
     summary:
-      'Get merchant products in unified format (name, images, price, optional category)',
+      'Get merchant products from database (name, description, images, price, category name)',
   })
   @ApiParam({ name: 'merchantId', type: String })
   @Get(':merchantId/products')

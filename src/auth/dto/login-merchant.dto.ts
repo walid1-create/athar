@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, MinLength } from 'class-validator';
 
-export class LoginSuperAdminDto {
-  @ApiProperty({ description: 'Email or phone number' })
+export class LoginMerchantDto {
+  @ApiProperty({ description: 'Account email or phone number' })
   @IsString()
   identifier: string;
 

@@ -2,9 +2,12 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { PrismaModule } from '../prisma/prisma.module';
-import { AuthController } from './auth.controller';
+import { AuthMerchantController } from './auth-merchant.controller';
+import { AuthSuperAdminController } from './auth-super-admin.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
+import { MerchantAccessGuard } from './merchant-access.guard';
+import { SuperAdminGuard } from './super-admin.guard';
 
 @Module({
   imports: [
@@ -15,8 +18,8 @@ import { JwtStrategy } from './jwt.strategy';
       signOptions: { expiresIn: '7d' },
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [AuthService],
+  controllers: [AuthSuperAdminController, AuthMerchantController],
+  providers: [AuthService, JwtStrategy, SuperAdminGuard, MerchantAccessGuard],
+  exports: [AuthService, SuperAdminGuard, MerchantAccessGuard],
 })
 export class AuthModule {}

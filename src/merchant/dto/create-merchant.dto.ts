@@ -1,7 +1,15 @@
 import { MerchantType } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsEnum, IsObject, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateMerchantDto {
   @ApiProperty()
@@ -12,57 +20,28 @@ export class CreateMerchantDto {
   @IsEnum(MerchantType)
   merchantType: MerchantType;
 
-  @ApiProperty()
-  @IsString()
-  websiteUrl: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  externalId?: string;
-
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   imageUrl?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Required if password is set (merchant portal login)' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({ description: 'Required if password is set' })
   @IsOptional()
   @IsString()
-  checkoutBaseUrl?: string;
+  @MinLength(5)
+  @MaxLength(50)
+  phone?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ minLength: 8, description: 'If set, email and phone are required' })
   @IsOptional()
   @IsString()
-  productsEndpoint?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  categoriesEndpoint?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  authType?: string;
-
-  @ApiPropertyOptional({ type: Object })
-  @IsOptional()
-  @Transform(({ value }) => {
-    if (value == null || value === '') {
-      return undefined;
-    }
-    if (typeof value === 'string') {
-      try {
-        return JSON.parse(value) as Record<string, unknown>;
-      } catch {
-        return value;
-      }
-    }
-    return value;
-  })
-  @IsObject()
-  authConfig?: Record<string, unknown>;
+  @MinLength(8)
+  password?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
