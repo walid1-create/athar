@@ -6,7 +6,8 @@ import { AuthMerchantController } from './auth-merchant.controller';
 import { AuthSuperAdminController } from './auth-super-admin.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
-import { MerchantAccessGuard } from './merchant-access.guard';
+import { MerchantJwtScopeGuard } from './merchant-jwt-scope.guard';
+import { MerchantAccountGuard } from './merchant-account.guard';
 import { SuperAdminGuard } from './super-admin.guard';
 
 @Module({
@@ -19,7 +20,18 @@ import { SuperAdminGuard } from './super-admin.guard';
     }),
   ],
   controllers: [AuthSuperAdminController, AuthMerchantController],
-  providers: [AuthService, JwtStrategy, SuperAdminGuard, MerchantAccessGuard],
-  exports: [AuthService, SuperAdminGuard, MerchantAccessGuard],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    SuperAdminGuard,
+    MerchantJwtScopeGuard,
+    MerchantAccountGuard,
+  ],
+  exports: [
+    AuthService,
+    SuperAdminGuard,
+    MerchantJwtScopeGuard,
+    MerchantAccountGuard,
+  ],
 })
 export class AuthModule {}

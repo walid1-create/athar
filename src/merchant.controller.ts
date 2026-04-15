@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { MerchantType } from '@prisma/client';
@@ -19,7 +20,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { MerchantJwtScopeGuard } from './auth/merchant-jwt-scope.guard';
+import { MerchantAccountGuard } from './auth/merchant-account.guard';
 import { SuperAdminGuard } from './auth/super-admin.guard';
+import { EffectiveMerchantId } from './auth/effective-merchant-id.decorator';
+import { JwtUserPayload } from './auth/jwt-user.payload';
 import { UpdateMerchantDto } from './merchant/dto/update-merchant.dto';
 import { MerchantIntegrationService } from './merchant.integration.service';
 
@@ -69,14 +74,34 @@ export class MerchantController {
   }
 
   @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, MerchantAccountGuard)
+  @ApiOperation({
+    summary: 'Update your store profile (merchant login only; id from token)',
+  })
+  @Patch('me')
+  updateMyMerchant(
+    @Req() req: { user?: JwtUserPayload },
+    @Body() dto: UpdateMerchantDto,
+  ) {
+    const user = req.user;
+    if (!user || user.role !== 'MERCHANT') {
+      throw new BadRequestException('Merchant account required');
+    }
+    return this.merchantIntegrationService.updateMerchant(
+      user.merchantId,
+      dto,
+    );
+  }
+
+  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiParam({ name: 'merchantId', type: String })
   @ApiOperation({
     summary:
-      'Edit merchant (super admin). New stores: POST /auth/merchant/register.',
+      'Edit a merchant (super admin). New stores: POST /auth/merchant/register.',
   })
-  @ApiParam({ name: 'merchantId', type: String })
-  @Patch(':merchantId')
-  updateMerchant(
+  @Patch('admin/:merchantId')
+  updateMerchantAsSuperAdmin(
     @Param('merchantId') merchantId: string,
     @Body() dto: UpdateMerchantDto,
   ) {
@@ -85,20 +110,21 @@ export class MerchantController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
-  @ApiOperation({ summary: 'Delete merchant (super admin only)' })
   @ApiParam({ name: 'merchantId', type: String })
-  @Delete(':merchantId')
+  @ApiOperation({ summary: 'Delete merchant (super admin only)' })
+  @Delete('admin/:merchantId')
   deleteMerchant(@Param('merchantId') merchantId: string) {
     return this.merchantIntegrationService.deleteMerchant(merchantId);
   }
 
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, MerchantJwtScopeGuard)
   @ApiOperation({
     summary:
-      'Get merchant products from database (name, description, images, price, category name)',
+      'List products for your store (merchant JWT only; id from token)',
   })
-  @ApiParam({ name: 'merchantId', type: String })
-  @Get(':merchantId/products')
-  getMerchantProducts(@Param('merchantId') merchantId: string) {
+  @Get('me/products')
+  getMerchantProducts(@EffectiveMerchantId() merchantId: string) {
     return this.merchantIntegrationService.getMerchantProducts(merchantId);
   }
 }

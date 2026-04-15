@@ -20,34 +20,35 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { CloudinaryService } from '../common/cloudinary.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { MerchantJwtScopeGuard } from '../auth/merchant-jwt-scope.guard';
-import { EffectiveMerchantId } from '../auth/effective-merchant-id.decorator';
+import { SuperAdminGuard } from '../auth/super-admin.guard';
+import { CloudinaryService } from '../common/cloudinary.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { MerchantCatalogService } from './merchant-catalog.service';
 
-/** Store catalog for logged-in merchants only (Bearer merchant JWT; store id from token). */
-@ApiTags('Merchant catalog')
+/** Super admin manages any store by merchant id in the URL (not for merchant app tokens). */
+@ApiTags('Merchant catalog (super admin)')
 @ApiBearerAuth()
-@Controller('merchants/me')
-@UseGuards(JwtAuthGuard, MerchantJwtScopeGuard)
-export class MerchantCatalogController {
+@Controller('merchants/admin')
+@UseGuards(JwtAuthGuard, SuperAdminGuard)
+export class MerchantCatalogSuperAdminController {
   constructor(
     private readonly catalog: MerchantCatalogService,
     private readonly cloudinary: CloudinaryService,
   ) {}
 
-  @ApiOperation({ summary: 'List categories for your store (JWT merchant id)' })
-  @Get('categories')
-  listCategories(@EffectiveMerchantId() merchantId: string) {
+  @ApiOperation({ summary: 'List categories for a merchant' })
+  @ApiParam({ name: 'merchantId', type: String })
+  @Get(':merchantId/categories')
+  listCategories(@Param('merchantId') merchantId: string) {
     return this.catalog.listCategories(merchantId);
   }
 
   @ApiOperation({ summary: 'Create category' })
+  @ApiParam({ name: 'merchantId', type: String })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -61,10 +62,10 @@ export class MerchantCatalogController {
       required: ['name'],
     },
   })
-  @Post('categories')
+  @Post(':merchantId/categories')
   @UseInterceptors(FileInterceptor('file'))
   async createCategory(
-    @EffectiveMerchantId() merchantId: string,
+    @Param('merchantId') merchantId: string,
     @Body() dto: CreateCategoryDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
@@ -79,10 +80,11 @@ export class MerchantCatalogController {
   }
 
   @ApiOperation({ summary: 'Update category' })
+  @ApiParam({ name: 'merchantId', type: String })
   @ApiParam({ name: 'categoryId', type: String })
-  @Patch('categories/:categoryId')
+  @Patch(':merchantId/categories/:categoryId')
   updateCategory(
-    @EffectiveMerchantId() merchantId: string,
+    @Param('merchantId') merchantId: string,
     @Param('categoryId') categoryId: string,
     @Body() dto: UpdateCategoryDto,
   ) {
@@ -90,28 +92,29 @@ export class MerchantCatalogController {
   }
 
   @ApiOperation({ summary: 'Delete category' })
+  @ApiParam({ name: 'merchantId', type: String })
   @ApiParam({ name: 'categoryId', type: String })
-  @Delete('categories/:categoryId')
+  @Delete(':merchantId/categories/:categoryId')
   deleteCategory(
-    @EffectiveMerchantId() merchantId: string,
+    @Param('merchantId') merchantId: string,
     @Param('categoryId') categoryId: string,
   ) {
     return this.catalog.deleteCategory(merchantId, categoryId);
   }
 
   @ApiOperation({ summary: 'List products in a category' })
+  @ApiParam({ name: 'merchantId', type: String })
   @ApiParam({ name: 'categoryId', type: String })
-  @Get('categories/:categoryId/products')
+  @Get(':merchantId/categories/:categoryId/products')
   listProducts(
-    @EffectiveMerchantId() merchantId: string,
+    @Param('merchantId') merchantId: string,
     @Param('categoryId') categoryId: string,
   ) {
     return this.catalog.listProducts(merchantId, categoryId);
   }
 
-  @ApiOperation({
-    summary: 'Create product with main image and optional gallery',
-  })
+  @ApiOperation({ summary: 'Create product with main image and optional gallery' })
+  @ApiParam({ name: 'merchantId', type: String })
   @ApiParam({ name: 'categoryId', type: String })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -130,7 +133,7 @@ export class MerchantCatalogController {
       required: ['name', 'price'],
     },
   })
-  @Post('categories/:categoryId/products')
+  @Post(':merchantId/categories/:categoryId/products')
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'file', maxCount: 1 },
@@ -138,7 +141,7 @@ export class MerchantCatalogController {
     ]),
   )
   async createProduct(
-    @EffectiveMerchantId() merchantId: string,
+    @Param('merchantId') merchantId: string,
     @Param('categoryId') categoryId: string,
     @Body() dto: CreateProductDto,
     @UploadedFiles()
@@ -177,10 +180,11 @@ export class MerchantCatalogController {
     summary:
       'Update product (JSON). Use imageUrl / extraImageUrls for images.',
   })
+  @ApiParam({ name: 'merchantId', type: String })
   @ApiParam({ name: 'productId', type: String })
-  @Patch('products/:productId')
+  @Patch(':merchantId/products/:productId')
   updateProduct(
-    @EffectiveMerchantId() merchantId: string,
+    @Param('merchantId') merchantId: string,
     @Param('productId') productId: string,
     @Body() dto: UpdateProductDto,
   ) {
@@ -188,10 +192,11 @@ export class MerchantCatalogController {
   }
 
   @ApiOperation({ summary: 'Delete product' })
+  @ApiParam({ name: 'merchantId', type: String })
   @ApiParam({ name: 'productId', type: String })
-  @Delete('products/:productId')
+  @Delete(':merchantId/products/:productId')
   deleteProduct(
-    @EffectiveMerchantId() merchantId: string,
+    @Param('merchantId') merchantId: string,
     @Param('productId') productId: string,
   ) {
     return this.catalog.deleteProduct(merchantId, productId);

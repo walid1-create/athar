@@ -5,13 +5,19 @@ import { MerchantController } from './merchant.controller';
 import { AppService } from './app.service';
 import { CloudinaryService } from './common/cloudinary.service';
 import { MerchantCatalogController } from './merchant-catalog/merchant-catalog.controller';
+import { MerchantCatalogSuperAdminController } from './merchant-catalog/merchant-catalog-super-admin.controller';
 import { MerchantCatalogService } from './merchant-catalog/merchant-catalog.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { MerchantIntegrationService } from './merchant.integration.service';
 
 @Module({
   imports: [PrismaModule, AuthModule],
-  controllers: [AppController, MerchantController, MerchantCatalogController],
+  controllers: [
+    AppController,
+    MerchantController,
+    MerchantCatalogController,
+    MerchantCatalogSuperAdminController,
+  ],
   providers: [
     AppService,
     MerchantIntegrationService,

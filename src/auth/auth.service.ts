@@ -11,6 +11,11 @@ import { LoginSuperAdminDto } from './dto/login-super-admin.dto';
 import { RegisterMerchantDto } from './dto/register-merchant.dto';
 import { RegisterSuperAdminDto } from './dto/register-super-admin.dto';
 
+/** Account role returned on merchant auth (store operator). */
+export const MERCHANT_ACCOUNT_ROLE = 'admin' as const;
+/** Account role returned on super-admin auth (API body; JWT still uses role SUPER_ADMIN). */
+export const SUPER_ADMIN_ACCOUNT_ROLE = 'super_admin' as const;
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -46,7 +51,10 @@ export class AuthService {
       },
     });
 
-    return admin;
+    return {
+      ...admin,
+      role: SUPER_ADMIN_ACCOUNT_ROLE,
+    };
   }
 
   async loginSuperAdmin(dto: LoginSuperAdminDto) {
@@ -79,6 +87,7 @@ export class AuthService {
         fullName: admin.fullName,
         email: admin.email,
         phone: admin.phone,
+        role: SUPER_ADMIN_ACCOUNT_ROLE,
       },
     };
   }
@@ -124,7 +133,10 @@ export class AuthService {
 
     return {
       accessToken,
-      merchant,
+      merchant: {
+        ...merchant,
+        role: MERCHANT_ACCOUNT_ROLE,
+      },
     };
   }
 
@@ -169,6 +181,7 @@ export class AuthService {
         merchantType: merchant.merchantType,
         email: merchant.email,
         phone: merchant.phone,
+        role: MERCHANT_ACCOUNT_ROLE,
       },
     };
   }
