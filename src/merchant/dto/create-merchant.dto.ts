@@ -1,12 +1,11 @@
-import { MerchantType } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
-  IsEnum,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -16,9 +15,9 @@ export class CreateMerchantDto {
   @IsString()
   name: string;
 
-  @ApiProperty({ enum: MerchantType })
-  @IsEnum(MerchantType)
-  merchantType: MerchantType;
+  @ApiProperty({ format: 'uuid', description: 'Merchant type id (see GET /merchant-types)' })
+  @IsUUID('4')
+  merchantTypeId: string;
 
   @ApiPropertyOptional()
   @IsOptional()

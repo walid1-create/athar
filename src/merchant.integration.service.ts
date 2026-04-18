@@ -3,7 +3,7 @@ import {
   ConflictException,
   Injectable,
 } from '@nestjs/common';
-import { MerchantType, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { hashPassword } from './common/hash-password';
 import { UnifiedProduct } from './merchant/catalog.types';
 import { UpdateMerchantDto } from './merchant/dto/update-merchant.dto';
@@ -13,6 +13,7 @@ import { PrismaService } from './prisma/prisma.service';
 export type MerchantListItem = {
   id: string;
   name: string;
+  merchantTypeId: string;
   merchantType: string;
   imageUrl: string | null;
   isActive: boolean;
@@ -31,23 +32,48 @@ export class MerchantIntegrationService {
     this.db = prisma as unknown as PrismaClient;
   }
 
-  async getMerchants(merchantType?: MerchantType): Promise<MerchantListItem[]> {
-    const whereClause = merchantType
-      ? ({ merchantType } as { merchantType: MerchantType })
+  async getMerchants(merchantTypeCode?: string): Promise<MerchantListItem[]> {
+    if (merchantTypeCode) {
+      const code = merchantTypeCode.trim().toUpperCase();
+      const exists = await this.db.merchantType.findUnique({
+        where: { code },
+        select: { id: true },
+      });
+      if (!exists) {
+        throw new BadRequestException('Invalid merchantType filter');
+      }
+    }
+    const whereClause = merchantTypeCode
+      ? {
+          merchantType: {
+            code: merchantTypeCode.trim().toUpperCase(),
+          },
+        }
       : undefined;
-    return this.db.merchant.findMany({
+    const rows = await this.db.merchant.findMany({
       where: whereClause,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         name: true,
-        merchantType: true,
+        merchantTypeId: true,
         imageUrl: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
+        merchantType: { select: { code: true } },
       },
-    }) as Promise<MerchantListItem[]>;
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      merchantTypeId: r.merchantTypeId,
+      merchantType: r.merchantType.code,
+      imageUrl: r.imageUrl,
+      isActive: r.isActive,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }));
   }
 
   private async assertUniqueMerchantCredentials(
@@ -115,11 +141,13 @@ export class MerchantIntegrationService {
       passwordHash = await hashPassword(newPassword);
     }
 
-    return (await this.db.merchant.update({
+    const updated = await this.db.merchant.update({
       where: { id: merchantId },
       data: {
         name: dto.name,
-        merchantType: dto.merchantType,
+        ...(dto.merchantTypeId !== undefined
+          ? { merchantTypeId: dto.merchantTypeId }
+          : {}),
         imageUrl: dto.imageUrl,
         isActive: dto.isActive,
         ...(dto.email !== undefined ? { email: dto.email } : {}),
@@ -129,51 +157,84 @@ export class MerchantIntegrationService {
       select: {
         id: true,
         name: true,
-        merchantType: true,
+        merchantTypeId: true,
         imageUrl: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
+        merchantType: { select: { code: true } },
       },
-    })) as MerchantListItem;
+    });
+    return {
+      id: updated.id,
+      name: updated.name,
+      merchantTypeId: updated.merchantTypeId,
+      merchantType: updated.merchantType.code,
+      imageUrl: updated.imageUrl,
+      isActive: updated.isActive,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    };
   }
 
   async updateMerchantImage(
     merchantId: string,
     imageUrl: string,
   ): Promise<MerchantListItem> {
-    return (await this.db.merchant.update({
+    const updated = await this.db.merchant.update({
       where: { id: merchantId },
       data: { imageUrl },
       select: {
         id: true,
         name: true,
-        merchantType: true,
+        merchantTypeId: true,
         imageUrl: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
+        merchantType: { select: { code: true } },
       },
-    })) as MerchantListItem;
+    });
+    return {
+      id: updated.id,
+      name: updated.name,
+      merchantTypeId: updated.merchantTypeId,
+      merchantType: updated.merchantType.code,
+      imageUrl: updated.imageUrl,
+      isActive: updated.isActive,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    };
   }
 
   async setMerchantActive(
     merchantId: string,
     isActive: boolean,
   ): Promise<MerchantListItem> {
-    return (await this.db.merchant.update({
+    const updated = await this.db.merchant.update({
       where: { id: merchantId },
       data: { isActive },
       select: {
         id: true,
         name: true,
-        merchantType: true,
+        merchantTypeId: true,
         imageUrl: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
+        merchantType: { select: { code: true } },
       },
-    })) as MerchantListItem;
+    });
+    return {
+      id: updated.id,
+      name: updated.name,
+      merchantTypeId: updated.merchantTypeId,
+      merchantType: updated.merchantType.code,
+      imageUrl: updated.imageUrl,
+      isActive: updated.isActive,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    };
   }
 
   async deleteMerchant(merchantId: string): Promise<{ message: string }> {

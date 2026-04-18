@@ -10,7 +10,6 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { MerchantType } from '@prisma/client';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -39,8 +38,8 @@ export class MerchantController {
   @ApiQuery({
     name: 'merchantType',
     required: false,
-    enum: MerchantType,
-    description: 'Optional filter by merchant type',
+    description:
+      'Optional filter by merchant type code (e.g. SUPERMARKET). See GET /merchant-types.',
   })
   @ApiOkResponse({
     description: 'List all merchants configured in database',
@@ -49,6 +48,7 @@ export class MerchantController {
         {
           id: '11111111-1111-1111-1111-111111111111',
           name: 'Fresh Basket Market',
+          merchantTypeId: 'a0000000-0000-4000-8000-000000000001',
           merchantType: 'SUPERMARKET',
           imageUrl: 'https://example.com/merchant.jpg',
           isActive: true,
@@ -60,17 +60,7 @@ export class MerchantController {
   })
   @Get()
   getMerchants(@Query('merchantType') merchantType?: string) {
-    if (
-      merchantType &&
-      !Object.values(MerchantType).includes(merchantType as MerchantType)
-    ) {
-      throw new BadRequestException(
-        `Invalid merchantType. Allowed values: ${Object.values(MerchantType).join(', ')}`,
-      );
-    }
-    return this.merchantIntegrationService.getMerchants(
-      merchantType as MerchantType | undefined,
-    );
+    return this.merchantIntegrationService.getMerchants(merchantType);
   }
 
   @ApiBearerAuth()

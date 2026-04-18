@@ -1,0 +1,72 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
+import { DriverAccountGuard } from '../auth/driver-account.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { SuperAdminGuard } from '../auth/super-admin.guard';
+import { JwtUserPayload } from '../auth/jwt-user.payload';
+import { UpdateDriverAdminDto } from './dto/update-driver-admin.dto';
+import { UpdateDriverDto } from './dto/update-driver.dto';
+import { DriversService } from './drivers.service';
+
+@ApiTags('Delivery (drivers)')
+@Controller('drivers')
+export class DriversController {
+  constructor(private readonly driversService: DriversService) {}
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, DriverAccountGuard)
+  @ApiOperation({ summary: 'Current driver profile (driver JWT)' })
+  @Get('me')
+  getMe(@Req() req: { user?: JwtUserPayload }) {
+    const user = req.user!;
+    return this.driversService.getProfile(user.sub);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, DriverAccountGuard)
+  @ApiOperation({
+    summary:
+      'Update your profile or status (driver JWT); use status for availability',
+  })
+  @Patch('me')
+  patchMe(
+    @Req() req: { user?: JwtUserPayload },
+    @Body() dto: UpdateDriverDto,
+  ) {
+    const user = req.user!;
+    return this.driversService.updateProfile(user.sub, dto);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiOperation({ summary: 'List all drivers (super admin only)' })
+  @Get()
+  findAll() {
+    return this.driversService.findAll();
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiOperation({ summary: 'Update a driver by id (super admin only)' })
+  @ApiParam({ name: 'driverId', type: String })
+  @Patch(':driverId')
+  patchDriver(
+    @Param('driverId') driverId: string,
+    @Body() dto: UpdateDriverAdminDto,
+  ) {
+    return this.driversService.updateByAdmin(driverId, dto);
+  }
+}

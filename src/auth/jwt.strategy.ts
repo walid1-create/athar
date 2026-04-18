@@ -24,6 +24,12 @@ function parseJwtPayload(payload: unknown): JwtUserPayload {
     }
     return { sub, email, role: 'MERCHANT', merchantId };
   }
+  if (role === 'USER') {
+    return { sub, email, role: 'USER' };
+  }
+  if (role === 'DRIVER') {
+    return { sub, email, role: 'DRIVER' };
+  }
   throw new UnauthorizedException('Invalid token');
 }
 

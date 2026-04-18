@@ -11,11 +11,18 @@ datasource db {
   provider = "postgresql"
 }
 
-enum MerchantType {
-  SUPERMARKET
-  RESTAURANT
-  PHARMACY
-  OTHER
+model MerchantType {
+  id          String     @id @default(uuid()) @db.Uuid
+  code        String     @unique @db.VarChar(64)
+  name        String     @db.VarChar(255)
+  description String?    @db.Text
+  isActive    Boolean    @default(true) @map("is_active")
+  sortOrder   Int        @default(0) @map("sort_order")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  merchants   Merchant[]
+
+  @@map("merchant_types")
 }
 
 model User {
@@ -49,10 +56,11 @@ model Driver {
 }
 
 model Merchant {
-  id           String             @id @default(uuid()) @db.Uuid
-  name         String             @db.VarChar(255)
-  merchantType MerchantType       @map("merchant_type")
-  email        String?            @unique @db.VarChar(255)
+  id              String       @id @default(uuid()) @db.Uuid
+  name            String       @db.VarChar(255)
+  merchantTypeId  String       @map("merchant_type_id") @db.Uuid
+  merchantType    MerchantType @relation(fields: [merchantTypeId], references: [id], onDelete: Restrict)
+  email           String?      @unique @db.VarChar(255)
   phone        String?            @unique @db.VarChar(50)
   passwordHash String?            @map("password_hash")
   imageUrl     String?            @map("image_url") @db.VarChar(500)
@@ -62,6 +70,7 @@ model Merchant {
   orders       Order[]
   categories   MerchantCategory[]
 
+  @@index([merchantTypeId])
   @@map("merchants")
 }
 

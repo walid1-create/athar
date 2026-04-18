@@ -5,4 +5,6 @@ export type JwtUserPayload =
       email: string;
       role: 'MERCHANT';
       merchantId: string;
-    };
+    }
+  | { sub: string; email: string; role: 'USER' }
+  | { sub: string; email: string; role: 'DRIVER' };

@@ -9,9 +9,18 @@ import { MerchantCatalogSuperAdminController } from './merchant-catalog/merchant
 import { MerchantCatalogService } from './merchant-catalog/merchant-catalog.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { MerchantIntegrationService } from './merchant.integration.service';
+import { MerchantTypeModule } from './merchant-type/merchant-type.module';
+import { DriversModule } from './drivers/drivers.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule],
+  imports: [
+    PrismaModule,
+    AuthModule,
+    MerchantTypeModule,
+    UsersModule,
+    DriversModule,
+  ],
   controllers: [
     AppController,
     MerchantController,
