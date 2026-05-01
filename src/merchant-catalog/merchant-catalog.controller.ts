@@ -4,20 +4,22 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UploadedFile,
-  UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { CloudinaryService } from '../common/cloudinary.service';
@@ -25,7 +27,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MerchantJwtScopeGuard } from '../auth/merchant-jwt-scope.guard';
 import { EffectiveMerchantId } from '../auth/effective-merchant-id.decorator';
 import { CreateCategoryDto } from './dto/create-category.dto';
-import { CreateProductDto } from './dto/create-product.dto';
+import { CreateProductMerchantMultipartDto } from './dto/create-product-merchant-multipart.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { MerchantCatalogService } from './merchant-catalog.service';
@@ -55,6 +57,8 @@ export class MerchantCatalogController {
       properties: {
         name: { type: 'string' },
         description: { type: 'string' },
+        nameAr: { type: 'string', description: 'Arabic category name' },
+        descriptionAr: { type: 'string', description: 'Arabic description' },
         sortOrder: { type: 'integer' },
         file: { type: 'string', format: 'binary' },
       },
@@ -99,83 +103,83 @@ export class MerchantCatalogController {
     return this.catalog.deleteCategory(merchantId, categoryId);
   }
 
-  @ApiOperation({ summary: 'List products in a category' })
-  @ApiParam({ name: 'categoryId', type: String })
-  @Get('categories/:categoryId/products')
-  listProducts(
+  @ApiOperation({
+    summary: 'List all products for your store',
+    description:
+      'Optional query `categoryId` filters to products in that category (must belong to your store).',
+  })
+  @ApiQuery({
+    name: 'categoryId',
+    required: false,
+    type: String,
+    description: 'Filter by category UUID',
+  })
+  @Get('products')
+  listAllProducts(
     @EffectiveMerchantId() merchantId: string,
-    @Param('categoryId') categoryId: string,
+    @Query('categoryId', new ParseUUIDPipe({ optional: true }))
+    categoryId?: string,
   ) {
-    return this.catalog.listProducts(merchantId, categoryId);
+    return this.catalog.listAllProducts(merchantId, categoryId);
   }
 
   @ApiOperation({
-    summary: 'Create product with main image and optional gallery',
+    summary:
+      'Create product (multipart). Upload photo via `imageUrl` (file picker in Swagger).',
   })
-  @ApiParam({ name: 'categoryId', type: String })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
+        categoryId: { type: 'string', format: 'uuid' },
         name: { type: 'string' },
+        nameAr: { type: 'string', description: 'Arabic product name' },
         price: { type: 'number' },
         description: { type: 'string' },
-        file: { type: 'string', format: 'binary' },
-        gallery: {
-          type: 'array',
-          items: { type: 'string', format: 'binary' },
+        descriptionAr: { type: 'string', description: 'Arabic description' },
+        discountPrice: { type: 'number' },
+        imageUrl: {
+          type: 'string',
+          format: 'binary',
+          description: 'Product image — choose file (uploaded to Cloudinary)',
         },
       },
-      required: ['name', 'price'],
+      required: ['categoryId', 'name', 'price'],
     },
   })
-  @Post('categories/:categoryId/products')
-  @UseInterceptors(
-    FileFieldsInterceptor([
-      { name: 'file', maxCount: 1 },
-      { name: 'gallery', maxCount: 24 },
-    ]),
-  )
+  @Post('products')
+  @UseInterceptors(FileInterceptor('imageUrl'))
   async createProduct(
     @EffectiveMerchantId() merchantId: string,
-    @Param('categoryId') categoryId: string,
-    @Body() dto: CreateProductDto,
-    @UploadedFiles()
-    files?: {
-      file?: Express.Multer.File[];
-      gallery?: Express.Multer.File[];
-    },
+    @Body() dto: CreateProductMerchantMultipartDto,
+    @UploadedFile() imageFile?: Express.Multer.File,
   ) {
-    const main = files?.file?.[0];
-    const gallery = files?.gallery ?? [];
-    let mainUrl: string | undefined;
-    if (main?.buffer) {
-      mainUrl = await this.cloudinary.uploadImage(main.buffer, 'athar/products');
-    }
-    const galleryUrls: string[] = [];
-    for (const g of gallery) {
-      if (g.buffer) {
-        galleryUrls.push(
-          await this.cloudinary.uploadImage(
-            g.buffer,
-            'athar/products/gallery',
-          ),
-        );
-      }
+    let mainImageUrlFromUpload: string | undefined;
+    if (imageFile?.buffer) {
+      mainImageUrlFromUpload = await this.cloudinary.uploadImage(
+        imageFile.buffer,
+        'athar/products',
+      );
     }
     return this.catalog.createProduct(
       merchantId,
-      categoryId,
-      dto,
-      mainUrl,
-      galleryUrls,
+      dto.categoryId,
+      {
+        name: dto.name,
+        price: dto.price,
+        description: dto.description,
+        nameAr: dto.nameAr,
+        descriptionAr: dto.descriptionAr,
+        discountPrice: dto.discountPrice,
+      },
+      mainImageUrlFromUpload,
+      [],
     );
   }
 
   @ApiOperation({
-    summary:
-      'Update product (JSON). Use imageUrl / extraImageUrls for images.',
+    summary: 'Update product (JSON). Use imageUrl / extraImageUrls for images.',
   })
   @ApiParam({ name: 'productId', type: String })
   @Patch('products/:productId')

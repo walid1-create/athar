@@ -4,19 +4,24 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsUrl,
+  IsUUID,
   MaxLength,
   Min,
 } from 'class-validator';
 import { ValidateDiscountNotAbovePrice } from '../validators/discount-not-greater-than-price.constraint';
 
-export class CreateProductDto {
+/** Form fields for `POST /merchants/me/products` (multipart text fields; binary upload field name `imageUrl`). */
+export class CreateProductMerchantMultipartDto {
+  @ApiProperty({ format: 'uuid', description: 'Category id (your store)' })
+  @IsUUID()
+  categoryId: string;
+
   @ApiProperty()
   @IsString()
   @MaxLength(255)
   name: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: Number })
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
@@ -38,22 +43,11 @@ export class CreateProductDto {
   @IsString()
   descriptionAr?: string;
 
-  @ApiPropertyOptional({
-    description: 'Discounted price shown to customers',
-  })
+  @ApiPropertyOptional({ type: Number })
   @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @ValidateDiscountNotAbovePrice()
   discountPrice?: number;
-
-  @ApiPropertyOptional({
-    description: 'Main product image URL',
-    maxLength: 500,
-  })
-  @IsOptional()
-  @IsUrl()
-  @MaxLength(500)
-  imageUrl?: string;
 }

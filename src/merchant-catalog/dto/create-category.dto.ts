@@ -13,6 +13,17 @@ export class CreateCategoryDto {
   @IsString()
   description?: string;
 
+  @ApiPropertyOptional({ description: 'Arabic category name' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  nameAr?: string;
+
+  @ApiPropertyOptional({ description: 'Arabic description' })
+  @IsOptional()
+  @IsString()
+  descriptionAr?: string;
+
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()
   @Type(() => Number)

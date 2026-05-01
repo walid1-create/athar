@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -22,7 +23,7 @@ export class MerchantCatalogService {
     const rows = await this.prisma.product.findMany({
       where: { category: { merchantId } },
       include: {
-        category: { select: { name: true } },
+        category: { select: { name: true, nameAr: true } },
         images: { orderBy: { sortOrder: 'asc' } },
       },
       orderBy: [{ updatedAt: 'desc' }],
@@ -31,10 +32,17 @@ export class MerchantCatalogService {
     return rows.map((p) => ({
       id: p.id,
       name: p.name,
+      nameAr: p.nameAr,
       description: p.description,
+      descriptionAr: p.descriptionAr,
       price: Number(p.price),
+      discountPrice: p.discountPrice !== null ? Number(p.discountPrice) : null,
       category: p.category.name,
-      images: this.collectImageUrls(p.imageUrl, p.images.map((i) => i.url)),
+      categoryAr: p.category.nameAr,
+      images: this.collectImageUrls(
+        p.imageUrl,
+        p.images.map((i) => i.url),
+      ),
     }));
   }
 
@@ -58,6 +66,8 @@ export class MerchantCatalogService {
         merchantId,
         name: dto.name,
         description: dto.description,
+        nameAr: dto.nameAr,
+        descriptionAr: dto.descriptionAr,
         imageUrl,
         sortOrder: dto.sortOrder ?? 0,
       },
@@ -81,6 +91,8 @@ export class MerchantCatalogService {
       data: {
         name: dto.name,
         description: dto.description,
+        nameAr: dto.nameAr,
+        descriptionAr: dto.descriptionAr,
         sortOrder: dto.sortOrder,
         ...(dto.imageUrl !== undefined ? { imageUrl: dto.imageUrl } : {}),
       },
@@ -115,6 +127,40 @@ export class MerchantCatalogService {
     return rows.map((p) => ({
       ...p,
       price: Number(p.price),
+      discountPrice: p.discountPrice !== null ? Number(p.discountPrice) : null,
+    }));
+  }
+
+  async listAllProducts(merchantId: string, categoryId?: string) {
+    await this.assertMerchantActive(merchantId);
+
+    if (categoryId !== undefined && categoryId !== '') {
+      const category = await this.prisma.merchantCategory.findFirst({
+        where: { id: categoryId, merchantId },
+      });
+      if (!category) {
+        throw new NotFoundException('Category not found');
+      }
+    }
+
+    const rows = await this.prisma.product.findMany({
+      where: {
+        category: { merchantId },
+        ...(categoryId !== undefined && categoryId !== ''
+          ? { categoryId }
+          : {}),
+      },
+      include: {
+        category: { select: { id: true, name: true, nameAr: true } },
+        images: { orderBy: { sortOrder: 'asc' } },
+      },
+      orderBy: [{ updatedAt: 'desc' }],
+    });
+    return rows.map((p) => ({
+      ...p,
+      price: Number(p.price),
+      discountPrice: p.discountPrice !== null ? Number(p.discountPrice) : null,
+      category: p.category,
     }));
   }
 
@@ -133,12 +179,20 @@ export class MerchantCatalogService {
       throw new NotFoundException('Category not found');
     }
 
+    this.assertDiscountNotAbovePrice(dto.price, dto.discountPrice);
+
     const created = await this.prisma.product.create({
       data: {
         categoryId,
         name: dto.name,
         description: dto.description,
+        nameAr: dto.nameAr,
+        descriptionAr: dto.descriptionAr,
         price: new Prisma.Decimal(dto.price),
+        discountPrice:
+          dto.discountPrice !== undefined
+            ? new Prisma.Decimal(Number(dto.discountPrice))
+            : undefined,
         imageUrl: mainImageUrl,
         images: {
           create: galleryUrls.map((url, sortOrder) => ({ url, sortOrder })),
@@ -146,7 +200,12 @@ export class MerchantCatalogService {
       },
       include: { images: { orderBy: { sortOrder: 'asc' } } },
     });
-    return { ...created, price: Number(created.price) };
+    return {
+      ...created,
+      price: Number(created.price),
+      discountPrice:
+        created.discountPrice !== null ? Number(created.discountPrice) : null,
+    };
   }
 
   async updateProduct(
@@ -164,6 +223,18 @@ export class MerchantCatalogService {
     if (!product) {
       throw new NotFoundException('Product not found');
     }
+
+    const effectivePrice =
+      dto.price !== undefined ? Number(dto.price) : Number(product.price);
+    let effectiveDiscount: number | null;
+    if (dto.discountPrice !== undefined) {
+      effectiveDiscount =
+        dto.discountPrice === null ? null : Number(dto.discountPrice);
+    } else {
+      effectiveDiscount =
+        product.discountPrice !== null ? Number(product.discountPrice) : null;
+    }
+    this.assertDiscountNotAbovePrice(effectivePrice, effectiveDiscount);
 
     const { extraImageUrls, imageUrl, ...rest } = dto;
 
@@ -186,9 +257,15 @@ export class MerchantCatalogService {
         data: {
           name: rest.name,
           description: rest.description,
+          nameAr: rest.nameAr,
+          descriptionAr: rest.descriptionAr,
           price:
             rest.price !== undefined
               ? new Prisma.Decimal(rest.price)
+              : undefined,
+          discountPrice:
+            rest.discountPrice !== undefined
+              ? new Prisma.Decimal(Number(rest.discountPrice))
               : undefined,
           ...(imageUrl !== undefined ? { imageUrl } : {}),
         },
@@ -197,6 +274,8 @@ export class MerchantCatalogService {
       return {
         ...updated,
         price: Number(updated.price),
+        discountPrice:
+          updated.discountPrice !== null ? Number(updated.discountPrice) : null,
       };
     });
   }
@@ -216,10 +295,21 @@ export class MerchantCatalogService {
     return { message: 'Product deleted' };
   }
 
-  private collectImageUrls(
-    main: string | null,
-    extras: string[],
-  ): string[] {
+  private assertDiscountNotAbovePrice(
+    price: number,
+    discountPrice?: number | null,
+  ): void {
+    if (discountPrice === undefined || discountPrice === null) {
+      return;
+    }
+    if (Number(discountPrice) > Number(price)) {
+      throw new BadRequestException(
+        'discountPrice cannot be greater than price',
+      );
+    }
+  }
+
+  private collectImageUrls(main: string | null, extras: string[]): string[] {
     const out: string[] = [];
     if (main) {
       out.push(main);

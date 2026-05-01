@@ -56,6 +56,8 @@ export class MerchantCatalogSuperAdminController {
       properties: {
         name: { type: 'string' },
         description: { type: 'string' },
+        nameAr: { type: 'string', description: 'Arabic category name' },
+        descriptionAr: { type: 'string', description: 'Arabic description' },
         sortOrder: { type: 'integer' },
         file: { type: 'string', format: 'binary' },
       },
@@ -122,8 +124,11 @@ export class MerchantCatalogSuperAdminController {
       type: 'object',
       properties: {
         name: { type: 'string' },
+        nameAr: { type: 'string', description: 'Arabic product name' },
         price: { type: 'number' },
         description: { type: 'string' },
+        descriptionAr: { type: 'string', description: 'Arabic description' },
+        discountPrice: { type: 'number' },
         file: { type: 'string', format: 'binary' },
         gallery: {
           type: 'array',
