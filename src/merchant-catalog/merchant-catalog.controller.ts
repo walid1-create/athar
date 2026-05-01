@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -44,9 +46,15 @@ export class MerchantCatalogController {
   ) {}
 
   @ApiOperation({ summary: 'List categories for your store (JWT merchant id)' })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
   @Get('categories')
-  listCategories(@EffectiveMerchantId() merchantId: string) {
-    return this.catalog.listCategories(merchantId);
+  listCategories(
+    @EffectiveMerchantId() merchantId: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ) {
+    return this.catalog.listCategories(merchantId, page, limit);
   }
 
   @ApiOperation({ summary: 'Create category' })
@@ -114,13 +122,17 @@ export class MerchantCatalogController {
     type: String,
     description: 'Filter by category UUID',
   })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
   @Get('products')
   listAllProducts(
     @EffectiveMerchantId() merchantId: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
     @Query('categoryId', new ParseUUIDPipe({ optional: true }))
     categoryId?: string,
   ) {
-    return this.catalog.listAllProducts(merchantId, categoryId);
+    return this.catalog.listAllProducts(merchantId, categoryId, page, limit);
   }
 
   @ApiOperation({

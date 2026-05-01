@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { hashPassword } from './common/hash-password';
-import { UnifiedProduct } from './merchant/catalog.types';
 import { UpdateMerchantDto } from './merchant/dto/update-merchant.dto';
 import { MerchantCatalogService } from './merchant-catalog/merchant-catalog.service';
 import { PrismaService } from './prisma/prisma.service';
@@ -242,9 +241,5 @@ export class MerchantIntegrationService {
       where: { id: merchantId },
     });
     return { message: 'Merchant deleted successfully' };
-  }
-
-  async getMerchantProducts(merchantId: string): Promise<UnifiedProduct[]> {
-    return this.catalog.getUnifiedProductsForMerchant(merchantId);
   }
 }

@@ -15,6 +15,28 @@ import { UpdateProductDto } from './dto/update-product.dto';
 export class MerchantCatalogService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private normalizePagination(page: number, limit: number) {
+    const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+    const safeLimit =
+      Number.isFinite(limit) && limit > 0
+        ? Math.min(Math.floor(limit), 100)
+        : 20;
+    return { page: safePage, limit: safeLimit, skip: (safePage - 1) * safeLimit };
+  }
+
+  private pagedResponse<T>(items: T[], total: number, page: number, limit: number) {
+    return {
+      items,
+      pagination: {
+        page,
+        limit,
+        pageTotal: items.length,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
+  }
+
   async getUnifiedProductsForMerchant(
     merchantId: string,
   ): Promise<UnifiedProduct[]> {
@@ -46,13 +68,21 @@ export class MerchantCatalogService {
     }));
   }
 
-  async listCategories(merchantId: string) {
+  async listCategories(merchantId: string, page = 1, limit = 20) {
     await this.assertMerchantActive(merchantId);
-    return this.prisma.merchantCategory.findMany({
-      where: { merchantId },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      include: { _count: { select: { products: true } } },
-    });
+    const pg = this.normalizePagination(page, limit);
+    const where = { merchantId };
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.merchantCategory.count({ where }),
+      this.prisma.merchantCategory.findMany({
+        where,
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        include: { _count: { select: { products: true } } },
+        skip: pg.skip,
+        take: pg.limit,
+      }),
+    ]);
+    return this.pagedResponse(items, total, pg.page, pg.limit);
   }
 
   async createCategory(
@@ -111,7 +141,7 @@ export class MerchantCatalogService {
     return { message: 'Category deleted' };
   }
 
-  async listProducts(merchantId: string, categoryId: string) {
+  async listProducts(merchantId: string, categoryId: string, page = 1, limit = 20) {
     await this.assertMerchantActive(merchantId);
     const category = await this.prisma.merchantCategory.findFirst({
       where: { id: categoryId, merchantId },
@@ -119,19 +149,32 @@ export class MerchantCatalogService {
     if (!category) {
       throw new NotFoundException('Category not found');
     }
-    const rows = await this.prisma.product.findMany({
-      where: { categoryId },
-      include: { images: { orderBy: { sortOrder: 'asc' } } },
-      orderBy: [{ name: 'asc' }],
-    });
-    return rows.map((p) => ({
+    const pg = this.normalizePagination(page, limit);
+    const where = { categoryId };
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.product.count({ where }),
+      this.prisma.product.findMany({
+        where,
+        include: { images: { orderBy: { sortOrder: 'asc' } } },
+        orderBy: [{ name: 'asc' }],
+        skip: pg.skip,
+        take: pg.limit,
+      }),
+    ]);
+    const items = rows.map((p) => ({
       ...p,
       price: Number(p.price),
       discountPrice: p.discountPrice !== null ? Number(p.discountPrice) : null,
     }));
+    return this.pagedResponse(items, total, pg.page, pg.limit);
   }
 
-  async listAllProducts(merchantId: string, categoryId?: string) {
+  async listAllProducts(
+    merchantId: string,
+    categoryId?: string,
+    page = 1,
+    limit = 20,
+  ) {
     await this.assertMerchantActive(merchantId);
 
     if (categoryId !== undefined && categoryId !== '') {
@@ -143,25 +186,31 @@ export class MerchantCatalogService {
       }
     }
 
-    const rows = await this.prisma.product.findMany({
-      where: {
-        category: { merchantId },
-        ...(categoryId !== undefined && categoryId !== ''
-          ? { categoryId }
-          : {}),
-      },
-      include: {
-        category: { select: { id: true, name: true, nameAr: true } },
-        images: { orderBy: { sortOrder: 'asc' } },
-      },
-      orderBy: [{ updatedAt: 'desc' }],
-    });
-    return rows.map((p) => ({
+    const where = {
+      category: { merchantId },
+      ...(categoryId !== undefined && categoryId !== '' ? { categoryId } : {}),
+    };
+    const pg = this.normalizePagination(page, limit);
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.product.count({ where }),
+      this.prisma.product.findMany({
+        where,
+        include: {
+          category: { select: { id: true, name: true, nameAr: true } },
+          images: { orderBy: { sortOrder: 'asc' } },
+        },
+        orderBy: [{ updatedAt: 'desc' }],
+        skip: pg.skip,
+        take: pg.limit,
+      }),
+    ]);
+    const items = rows.map((p) => ({
       ...p,
       price: Number(p.price),
       discountPrice: p.discountPrice !== null ? Number(p.discountPrice) : null,
       category: p.category,
     }));
+    return this.pagedResponse(items, total, pg.page, pg.limit);
   }
 
   async createProduct(

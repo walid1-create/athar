@@ -1,11 +1,14 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UploadedFiles,
   UseGuards,
@@ -18,6 +21,7 @@ import {
   ApiConsumes,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -42,9 +46,15 @@ export class MerchantCatalogSuperAdminController {
 
   @ApiOperation({ summary: 'List categories for a merchant' })
   @ApiParam({ name: 'merchantId', type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
   @Get(':merchantId/categories')
-  listCategories(@Param('merchantId') merchantId: string) {
-    return this.catalog.listCategories(merchantId);
+  listCategories(
+    @Param('merchantId') merchantId: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ) {
+    return this.catalog.listCategories(merchantId, page, limit);
   }
 
   @ApiOperation({ summary: 'Create category' })
@@ -107,12 +117,16 @@ export class MerchantCatalogSuperAdminController {
   @ApiOperation({ summary: 'List products in a category' })
   @ApiParam({ name: 'merchantId', type: String })
   @ApiParam({ name: 'categoryId', type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
   @Get(':merchantId/categories/:categoryId/products')
   listProducts(
     @Param('merchantId') merchantId: string,
     @Param('categoryId') categoryId: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
-    return this.catalog.listProducts(merchantId, categoryId);
+    return this.catalog.listProducts(merchantId, categoryId, page, limit);
   }
 
   @ApiOperation({ summary: 'Create product with main image and optional gallery' })

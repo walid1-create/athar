@@ -19,11 +19,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
-import { MerchantJwtScopeGuard } from './auth/merchant-jwt-scope.guard';
 import { MerchantAccountGuard } from './auth/merchant-account.guard';
 import { SuperAdminGuard } from './auth/super-admin.guard';
-import { EffectiveMerchantId } from './auth/effective-merchant-id.decorator';
 import { JwtUserPayload } from './auth/jwt-user.payload';
+import { SetMerchantActiveDto } from './merchant/dto/set-merchant-active.dto';
 import { UpdateMerchantDto } from './merchant/dto/update-merchant.dto';
 import { MerchantIntegrationService } from './merchant.integration.service';
 
@@ -84,6 +83,26 @@ export class MerchantController {
   }
 
   @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, MerchantAccountGuard)
+  @ApiOperation({
+    summary: 'Open/close your store (merchant login only)',
+  })
+  @Patch('me/active')
+  setMyMerchantActive(
+    @Req() req: { user?: JwtUserPayload },
+    @Body() dto: SetMerchantActiveDto,
+  ) {
+    const user = req.user;
+    if (!user || user.role !== 'MERCHANT') {
+      throw new BadRequestException('Merchant account required');
+    }
+    return this.merchantIntegrationService.setMerchantActive(
+      user.merchantId,
+      dto.isActive,
+    );
+  }
+
+  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
   @ApiParam({ name: 'merchantId', type: String })
   @ApiOperation({
@@ -105,16 +124,5 @@ export class MerchantController {
   @Delete('admin/:merchantId')
   deleteMerchant(@Param('merchantId') merchantId: string) {
     return this.merchantIntegrationService.deleteMerchant(merchantId);
-  }
-
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, MerchantJwtScopeGuard)
-  @ApiOperation({
-    summary:
-      'List products for your store (merchant JWT only; id from token)',
-  })
-  @Get('me/products')
-  getMerchantProducts(@EffectiveMerchantId() merchantId: string) {
-    return this.merchantIntegrationService.getMerchantProducts(merchantId);
   }
 }

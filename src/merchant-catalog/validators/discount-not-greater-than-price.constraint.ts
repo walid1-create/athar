@@ -6,9 +6,7 @@ import {
 } from 'class-validator';
 
 @ValidatorConstraint({ name: 'discountNotGreaterThanPrice', async: false })
-export class DiscountNotGreaterThanPriceConstraint
-  implements ValidatorConstraintInterface
-{
+export class DiscountNotGreaterThanPriceConstraint implements ValidatorConstraintInterface {
   validate(discountPrice: unknown, args: ValidationArguments): boolean {
     if (
       discountPrice === undefined ||
