@@ -19,10 +19,15 @@ export class CreateMerchantDto {
   @IsUUID('4')
   merchantTypeId: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Logo image URL' })
   @IsOptional()
   @IsString()
-  imageUrl?: string;
+  logoUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Cover / banner image URL' })
+  @IsOptional()
+  @IsString()
+  coverImageUrl?: string;
 
   @ApiPropertyOptional({ description: 'Required if password is set (merchant portal login)' })
   @IsOptional()

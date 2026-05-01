@@ -100,7 +100,11 @@ export class AuthService {
     };
   }
 
-  async registerMerchant(dto: RegisterMerchantDto) {
+  async registerMerchant(
+    dto: RegisterMerchantDto,
+    logoUrl: string,
+    coverImageUrl: string,
+  ) {
     const existing = await this.prisma.merchant.findFirst({
       where: {
         OR: [{ email: dto.email }, { phone: dto.phone }],
@@ -121,6 +125,8 @@ export class AuthService {
         email: dto.email,
         phone: dto.phone,
         passwordHash,
+        imageUrl: logoUrl,
+        coverImageUrl,
         isActive: true,
       },
       select: {
@@ -130,6 +136,8 @@ export class AuthService {
         merchantType: { select: { code: true } },
         email: true,
         phone: true,
+        imageUrl: true,
+        coverImageUrl: true,
       },
     });
 
@@ -149,6 +157,8 @@ export class AuthService {
         merchantType: merchant.merchantType.code,
         email: merchant.email,
         phone: merchant.phone,
+        logoUrl: merchant.imageUrl,
+        coverImageUrl: merchant.coverImageUrl,
         role: MERCHANT_ACCOUNT_ROLE,
       },
     };
@@ -169,6 +179,8 @@ export class AuthService {
         email: true,
         phone: true,
         passwordHash: true,
+        imageUrl: true,
+        coverImageUrl: true,
       },
     });
 
@@ -197,6 +209,8 @@ export class AuthService {
         merchantType: merchant.merchantType.code,
         email: merchant.email,
         phone: merchant.phone,
+        logoUrl: merchant.imageUrl,
+        coverImageUrl: merchant.coverImageUrl,
         role: MERCHANT_ACCOUNT_ROLE,
       },
     };

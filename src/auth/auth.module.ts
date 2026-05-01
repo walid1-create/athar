@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { CloudinaryService } from '../common/cloudinary.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthMerchantController } from './auth-merchant.controller';
 import { AuthSuperAdminController } from './auth-super-admin.controller';
@@ -31,6 +32,7 @@ import { UserAccountGuard } from './user-account.guard';
   ],
   providers: [
     AuthService,
+    CloudinaryService,
     JwtStrategy,
     SuperAdminGuard,
     MerchantJwtScopeGuard,

@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
+/** Form fields for POST /auth/merchant/register (use multipart/form-data; files `logo` and `cover` are separate). */
 export class RegisterMerchantDto {
   @ApiProperty()
   @IsEmail()

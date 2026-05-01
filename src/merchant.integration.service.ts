@@ -14,7 +14,8 @@ export type MerchantListItem = {
   name: string;
   merchantTypeId: string;
   merchantType: string;
-  imageUrl: string | null;
+  logoUrl: string | null;
+  coverImageUrl: string | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -57,6 +58,7 @@ export class MerchantIntegrationService {
         name: true,
         merchantTypeId: true,
         imageUrl: true,
+        coverImageUrl: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
@@ -68,7 +70,8 @@ export class MerchantIntegrationService {
       name: r.name,
       merchantTypeId: r.merchantTypeId,
       merchantType: r.merchantType.code,
-      imageUrl: r.imageUrl,
+      logoUrl: r.imageUrl,
+      coverImageUrl: r.coverImageUrl,
       isActive: r.isActive,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
@@ -143,12 +146,15 @@ export class MerchantIntegrationService {
     const updated = await this.db.merchant.update({
       where: { id: merchantId },
       data: {
-        name: dto.name,
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
         ...(dto.merchantTypeId !== undefined
           ? { merchantTypeId: dto.merchantTypeId }
           : {}),
-        imageUrl: dto.imageUrl,
-        isActive: dto.isActive,
+        ...(dto.logoUrl !== undefined ? { imageUrl: dto.logoUrl } : {}),
+        ...(dto.coverImageUrl !== undefined
+          ? { coverImageUrl: dto.coverImageUrl }
+          : {}),
+        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
         ...(dto.email !== undefined ? { email: dto.email } : {}),
         ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
         ...(passwordHash !== undefined ? { passwordHash } : {}),
@@ -158,6 +164,7 @@ export class MerchantIntegrationService {
         name: true,
         merchantTypeId: true,
         imageUrl: true,
+        coverImageUrl: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
@@ -169,7 +176,8 @@ export class MerchantIntegrationService {
       name: updated.name,
       merchantTypeId: updated.merchantTypeId,
       merchantType: updated.merchantType.code,
-      imageUrl: updated.imageUrl,
+      logoUrl: updated.imageUrl,
+      coverImageUrl: updated.coverImageUrl,
       isActive: updated.isActive,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
@@ -178,16 +186,17 @@ export class MerchantIntegrationService {
 
   async updateMerchantImage(
     merchantId: string,
-    imageUrl: string,
+    logoUrl: string,
   ): Promise<MerchantListItem> {
     const updated = await this.db.merchant.update({
       where: { id: merchantId },
-      data: { imageUrl },
+      data: { imageUrl: logoUrl },
       select: {
         id: true,
         name: true,
         merchantTypeId: true,
         imageUrl: true,
+        coverImageUrl: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
@@ -199,7 +208,8 @@ export class MerchantIntegrationService {
       name: updated.name,
       merchantTypeId: updated.merchantTypeId,
       merchantType: updated.merchantType.code,
-      imageUrl: updated.imageUrl,
+      logoUrl: updated.imageUrl,
+      coverImageUrl: updated.coverImageUrl,
       isActive: updated.isActive,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
@@ -218,6 +228,7 @@ export class MerchantIntegrationService {
         name: true,
         merchantTypeId: true,
         imageUrl: true,
+        coverImageUrl: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
@@ -229,7 +240,8 @@ export class MerchantIntegrationService {
       name: updated.name,
       merchantTypeId: updated.merchantTypeId,
       merchantType: updated.merchantType.code,
-      imageUrl: updated.imageUrl,
+      logoUrl: updated.imageUrl,
+      coverImageUrl: updated.coverImageUrl,
       isActive: updated.isActive,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
