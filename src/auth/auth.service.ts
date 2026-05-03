@@ -302,6 +302,98 @@ export class AuthService {
     };
   }
 
+  async loginUserOrDriver(dto: LoginUserDto) {
+    const identifierMatch = {
+      OR: [{ email: dto.identifier }, { phone: dto.identifier }],
+      isActive: true,
+    };
+
+    const [appUser, driver] = await Promise.all([
+      this.prisma.user.findFirst({
+        where: identifierMatch,
+        select: {
+          id: true,
+          fullName: true,
+          phone: true,
+          email: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          passwordHash: true,
+        },
+      }),
+      this.prisma.driver.findFirst({
+        where: identifierMatch,
+        select: {
+          id: true,
+          fullName: true,
+          phone: true,
+          email: true,
+          vehicleType: true,
+          status: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          passwordHash: true,
+        },
+      }),
+    ]);
+
+    if (appUser) {
+      const ok = await bcrypt.compare(dto.password, appUser.passwordHash);
+      if (ok) {
+        const accessToken = await this.jwtService.signAsync({
+          sub: appUser.id,
+          email: appUser.email ?? appUser.phone,
+          role: 'USER',
+        });
+        return {
+          accountType: 'user' as const,
+          accessToken,
+          user: {
+            id: appUser.id,
+            fullName: appUser.fullName,
+            phone: appUser.phone,
+            email: appUser.email,
+            isActive: appUser.isActive,
+            createdAt: appUser.createdAt,
+            updatedAt: appUser.updatedAt,
+            role: USER_ACCOUNT_ROLE,
+          },
+        };
+      }
+    }
+
+    if (driver) {
+      const ok = await bcrypt.compare(dto.password, driver.passwordHash);
+      if (ok) {
+        const accessToken = await this.jwtService.signAsync({
+          sub: driver.id,
+          email: driver.email ?? driver.phone,
+          role: 'DRIVER',
+        });
+        return {
+          accountType: 'driver' as const,
+          accessToken,
+          driver: {
+            id: driver.id,
+            fullName: driver.fullName,
+            phone: driver.phone,
+            email: driver.email,
+            vehicleType: driver.vehicleType,
+            status: driver.status,
+            isActive: driver.isActive,
+            createdAt: driver.createdAt,
+            updatedAt: driver.updatedAt,
+            role: DRIVER_ACCOUNT_ROLE,
+          },
+        };
+      }
+    }
+
+    throw new UnauthorizedException('Invalid credentials');
+  }
+
   async registerDriver(dto: RegisterDriverDto) {
     const orConditions: { email?: string; phone?: string }[] = [
       { phone: dto.phone },

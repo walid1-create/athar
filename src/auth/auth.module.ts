@@ -5,6 +5,7 @@ import { CloudinaryService } from '../common/cloudinary.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthMerchantController } from './auth-merchant.controller';
 import { AuthSuperAdminController } from './auth-super-admin.controller';
+import { AuthAppController } from './auth-app.controller';
 import { AuthDriverController } from './auth-driver.controller';
 import { AuthUserController } from './auth-user.controller';
 import { AuthService } from './auth.service';
@@ -27,6 +28,7 @@ import { UserAccountGuard } from './user-account.guard';
   controllers: [
     AuthSuperAdminController,
     AuthMerchantController,
+    AuthAppController,
     AuthUserController,
     AuthDriverController,
   ],
