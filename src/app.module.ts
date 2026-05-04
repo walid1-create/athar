@@ -10,6 +10,7 @@ import { MerchantCatalogService } from './merchant-catalog/merchant-catalog.serv
 import { PrismaModule } from './prisma/prisma.module';
 import { MerchantIntegrationService } from './merchant.integration.service';
 import { MerchantTypeModule } from './merchant-type/merchant-type.module';
+import { AdminModule } from './admin/admin.module';
 import { DriversModule } from './drivers/drivers.module';
 import { UsersModule } from './users/users.module';
 
@@ -20,6 +21,7 @@ import { UsersModule } from './users/users.module';
     MerchantTypeModule,
     UsersModule,
     DriversModule,
+    AdminModule,
   ],
   controllers: [
     AppController,

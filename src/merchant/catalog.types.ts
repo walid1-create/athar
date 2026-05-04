@@ -7,6 +7,10 @@ export type UnifiedProduct = {
   descriptionAr: string | null;
   price: number;
   discountPrice: number | null;
+  /** True when `discountPrice` is set and lower than `price` */
+  hasDiscount: boolean;
+  /** Price charged at checkout: `discountPrice` when on sale, otherwise `price` */
+  effectivePrice: number;
   images: string[];
   category: string;
   categoryAr: string | null;

@@ -37,6 +37,16 @@ export class MerchantCatalogService {
     };
   }
 
+  /** Sale is active only when discount is strictly below list price */
+  private discountPresentation(price: number, discountPrice: number | null) {
+    const hasDiscount =
+      discountPrice !== null && Number(discountPrice) < Number(price);
+    return {
+      hasDiscount,
+      effectivePrice: hasDiscount ? Number(discountPrice) : Number(price),
+    };
+  }
+
   async getUnifiedProductsForMerchant(
     merchantId: string,
   ): Promise<UnifiedProduct[]> {
@@ -51,21 +61,27 @@ export class MerchantCatalogService {
       orderBy: [{ updatedAt: 'desc' }],
     });
 
-    return rows.map((p) => ({
-      id: p.id,
-      name: p.name,
-      nameAr: p.nameAr,
-      description: p.description,
-      descriptionAr: p.descriptionAr,
-      price: Number(p.price),
-      discountPrice: p.discountPrice !== null ? Number(p.discountPrice) : null,
-      category: p.category.name,
-      categoryAr: p.category.nameAr,
-      images: this.collectImageUrls(
-        p.imageUrl,
-        p.images.map((i) => i.url),
-      ),
-    }));
+    return rows.map((p) => {
+      const price = Number(p.price);
+      const discountPrice =
+        p.discountPrice !== null ? Number(p.discountPrice) : null;
+      return {
+        id: p.id,
+        name: p.name,
+        nameAr: p.nameAr,
+        description: p.description,
+        descriptionAr: p.descriptionAr,
+        price,
+        discountPrice,
+        ...this.discountPresentation(price, discountPrice),
+        category: p.category.name,
+        categoryAr: p.category.nameAr,
+        images: this.collectImageUrls(
+          p.imageUrl,
+          p.images.map((i) => i.url),
+        ),
+      };
+    });
   }
 
   async listCategories(merchantId: string, page = 1, limit = 20) {
@@ -161,11 +177,17 @@ export class MerchantCatalogService {
         take: pg.limit,
       }),
     ]);
-    const items = rows.map((p) => ({
-      ...p,
-      price: Number(p.price),
-      discountPrice: p.discountPrice !== null ? Number(p.discountPrice) : null,
-    }));
+    const items = rows.map((p) => {
+      const price = Number(p.price);
+      const discountPrice =
+        p.discountPrice !== null ? Number(p.discountPrice) : null;
+      return {
+        ...p,
+        price,
+        discountPrice,
+        ...this.discountPresentation(price, discountPrice),
+      };
+    });
     return this.pagedResponse(items, total, pg.page, pg.limit);
   }
 
@@ -204,12 +226,98 @@ export class MerchantCatalogService {
         take: pg.limit,
       }),
     ]);
-    const items = rows.map((p) => ({
-      ...p,
-      price: Number(p.price),
-      discountPrice: p.discountPrice !== null ? Number(p.discountPrice) : null,
-      category: p.category,
-    }));
+    const items = rows.map((p) => {
+      const price = Number(p.price);
+      const discountPrice =
+        p.discountPrice !== null ? Number(p.discountPrice) : null;
+      return {
+        ...p,
+        price,
+        discountPrice,
+        ...this.discountPresentation(price, discountPrice),
+        category: p.category,
+      };
+    });
+    return this.pagedResponse(items, total, pg.page, pg.limit);
+  }
+
+  /**
+   * All products on sale across every active merchant (`discount_price` set and
+   * strictly below `price`). Pagination is applied in the database.
+   */
+  async listDiscountedProductsAcrossMerchants(page = 1, limit = 20) {
+    const pg = this.normalizePagination(page, limit);
+
+    const countRows = await this.prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(*)::bigint AS count
+      FROM products p
+      INNER JOIN merchant_categories mc ON mc.id = p.category_id
+      INNER JOIN merchants m ON m.id = mc.merchant_id
+      WHERE p.discount_price IS NOT NULL
+        AND p.discount_price < p.price
+        AND m.is_active = true
+    `;
+    const total = Number(countRows[0]?.count ?? 0);
+
+    const idRows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT p.id
+      FROM products p
+      INNER JOIN merchant_categories mc ON mc.id = p.category_id
+      INNER JOIN merchants m ON m.id = mc.merchant_id
+      WHERE p.discount_price IS NOT NULL
+        AND p.discount_price < p.price
+        AND m.is_active = true
+      ORDER BY p.updated_at DESC
+      LIMIT ${pg.limit}
+      OFFSET ${pg.skip}
+    `;
+
+    const ids = idRows.map((r) => r.id);
+    if (ids.length === 0) {
+      return this.pagedResponse([], total, pg.page, pg.limit);
+    }
+
+    const rows = await this.prisma.product.findMany({
+      where: { id: { in: ids } },
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            nameAr: true,
+            merchantId: true,
+            merchant: { select: { id: true, name: true } },
+          },
+        },
+        images: { orderBy: { sortOrder: 'asc' } },
+      },
+    });
+    const byId = new Map(rows.map((p) => [p.id, p]));
+    const ordered = ids
+      .map((id) => byId.get(id))
+      .filter((row): row is (typeof rows)[number] => row !== undefined);
+
+    const items = ordered.map((p) => {
+      const price = Number(p.price);
+      const discountPrice =
+        p.discountPrice !== null ? Number(p.discountPrice) : null;
+      return {
+        ...p,
+        price,
+        discountPrice,
+        ...this.discountPresentation(price, discountPrice),
+        category: {
+          id: p.category.id,
+          name: p.category.name,
+          nameAr: p.category.nameAr,
+        },
+        merchant: {
+          id: p.category.merchant.id,
+          name: p.category.merchant.name,
+        },
+      };
+    });
+
     return this.pagedResponse(items, total, pg.page, pg.limit);
   }
 
@@ -249,11 +357,14 @@ export class MerchantCatalogService {
       },
       include: { images: { orderBy: { sortOrder: 'asc' } } },
     });
+    const price = Number(created.price);
+    const discountPrice =
+      created.discountPrice !== null ? Number(created.discountPrice) : null;
     return {
       ...created,
-      price: Number(created.price),
-      discountPrice:
-        created.discountPrice !== null ? Number(created.discountPrice) : null,
+      price,
+      discountPrice,
+      ...this.discountPresentation(price, discountPrice),
     };
   }
 
@@ -320,11 +431,14 @@ export class MerchantCatalogService {
         },
         include: { images: { orderBy: { sortOrder: 'asc' } } },
       });
+      const price = Number(updated.price);
+      const discountPrice =
+        updated.discountPrice !== null ? Number(updated.discountPrice) : null;
       return {
         ...updated,
-        price: Number(updated.price),
-        discountPrice:
-          updated.discountPrice !== null ? Number(updated.discountPrice) : null,
+        price,
+        discountPrice,
+        ...this.discountPresentation(price, discountPrice),
       };
     });
   }

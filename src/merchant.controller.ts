@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Query,
   Req,
@@ -24,6 +26,7 @@ import { SuperAdminGuard } from './auth/super-admin.guard';
 import { JwtUserPayload } from './auth/jwt-user.payload';
 import { SetMerchantActiveDto } from './merchant/dto/set-merchant-active.dto';
 import { UpdateMerchantDto } from './merchant/dto/update-merchant.dto';
+import { MerchantCatalogService } from './merchant-catalog/merchant-catalog.service';
 import { MerchantIntegrationService } from './merchant.integration.service';
 
 @ApiTags('Merchants')
@@ -31,6 +34,7 @@ import { MerchantIntegrationService } from './merchant.integration.service';
 export class MerchantController {
   constructor(
     private readonly merchantIntegrationService: MerchantIntegrationService,
+    private readonly merchantCatalogService: MerchantCatalogService,
   ) {}
 
   @ApiOperation({ summary: 'Get all merchants' })
@@ -61,6 +65,23 @@ export class MerchantController {
   @Get()
   getMerchants(@Query('merchantType') merchantType?: string) {
     return this.merchantIntegrationService.getMerchants(merchantType);
+  }
+
+  @ApiOperation({
+    summary:
+      'List discounted products across all active merchants (on sale: discount price below list price)',
+  })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
+  @Get('products/discounts')
+  listDiscountedProductsAcrossMerchants(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ) {
+    return this.merchantCatalogService.listDiscountedProductsAcrossMerchants(
+      page,
+      limit,
+    );
   }
 
   @ApiBearerAuth()

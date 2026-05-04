@@ -116,12 +116,14 @@ export class AuthService {
       throw new BadRequestException('A merchant with this email or phone already exists');
     }
 
+    const merchantTypeId = await this.resolveMerchantTypeIdForRegister(dto);
+
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     const merchant = await this.prisma.merchant.create({
       data: {
         name: dto.merchantName,
-        merchantTypeId: dto.merchantTypeId,
+        merchantTypeId,
         email: dto.email,
         phone: dto.phone,
         passwordHash,
@@ -162,6 +164,48 @@ export class AuthService {
         role: MERCHANT_ACCOUNT_ROLE,
       },
     };
+  }
+
+  /**
+   * Resolves merchant_types row for registration. Prefers merchantTypeCode when set
+   * so clients are not tied to UUIDs from another environment.
+   */
+  private async resolveMerchantTypeIdForRegister(
+    dto: RegisterMerchantDto,
+  ): Promise<string> {
+    const rawCode = dto.merchantTypeCode;
+    const code = typeof rawCode === 'string' ? rawCode.trim() : '';
+    if (code.length > 0) {
+      const byCode = await this.prisma.merchantType.findFirst({
+        where: { code: code.toUpperCase(), isActive: true },
+        select: { id: true },
+      });
+      if (!byCode) {
+        throw new BadRequestException(
+          `Unknown merchant type code "${code}". Call GET /merchant-types on this server for valid codes.`,
+        );
+      }
+      return byCode.id;
+    }
+
+    const rawId = dto.merchantTypeId;
+    const id = typeof rawId === 'string' ? rawId.trim() : '';
+    if (!id) {
+      throw new BadRequestException(
+        'Provide merchantTypeId or merchantTypeCode (see GET /merchant-types).',
+      );
+    }
+
+    const byId = await this.prisma.merchantType.findFirst({
+      where: { id, isActive: true },
+      select: { id: true },
+    });
+    if (!byId) {
+      throw new BadRequestException(
+        'Unknown or inactive merchantTypeId. Use GET /merchant-types on this server — ids must exist in merchant_types (apply prisma migrations if that table is empty).',
+      );
+    }
+    return byId.id;
   }
 
   async loginMerchant(dto: LoginMerchantDto) {

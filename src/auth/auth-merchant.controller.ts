@@ -41,7 +41,6 @@ export class AuthMerchantController {
         'phone',
         'password',
         'merchantName',
-        'merchantTypeId',
         'logo',
         'cover',
       ],
@@ -57,7 +56,14 @@ export class AuthMerchantController {
         merchantTypeId: {
           type: 'string',
           format: 'uuid',
-          description: 'Merchant type id (see GET /merchant-types)',
+          description:
+            'Merchant type UUID from GET /merchant-types on this server. Optional if merchantTypeCode is sent.',
+        },
+        merchantTypeCode: {
+          type: 'string',
+          example: 'SUPERMARKET',
+          description:
+            'Alternative to merchantTypeId (e.g. SUPERMARKET, RESTAURANT). Case-insensitive.',
         },
         logo: {
           type: 'string',
