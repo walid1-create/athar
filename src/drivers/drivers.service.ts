@@ -6,6 +6,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { DRIVER_ACCOUNT_ROLE } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RegisterDriverDto } from '../auth/dto/register-driver.dto';
 import { UpdateDriverAdminDto } from './dto/update-driver-admin.dto';
 import { UpdateDriverDto } from './dto/update-driver.dto';
 
@@ -47,6 +48,39 @@ export class DriversService {
       select: driverPublicSelect,
     });
     return rows.map((d) => this.withDriverRole(d));
+  }
+
+  /** Super admin: create a driver account (driver signs in with the given password). */
+  async createByAdmin(dto: RegisterDriverDto) {
+    const orConditions: { email?: string; phone?: string }[] = [
+      { phone: dto.phone },
+    ];
+    if (dto.email) {
+      orConditions.push({ email: dto.email });
+    }
+    const existing = await this.prisma.driver.findFirst({
+      where: { OR: orConditions },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new BadRequestException(
+        'A driver with this phone or email already exists',
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const driver = await this.prisma.driver.create({
+      data: {
+        fullName: dto.fullName,
+        phone: dto.phone,
+        email: dto.email,
+        passwordHash,
+        vehicleType: dto.vehicleType,
+        status: dto.status,
+      },
+      select: driverPublicSelect,
+    });
+    return { driver: this.withDriverRole(driver) };
   }
 
   async getProfile(driverId: string) {

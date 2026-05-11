@@ -3,7 +3,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginMerchantDto } from './dto/login-merchant.dto';
@@ -14,6 +14,7 @@ import { RegisterMerchantDto } from './dto/register-merchant.dto';
 import { RegisterSuperAdminDto } from './dto/register-super-admin.dto';
 import { RegisterDriverDto } from './dto/register-driver.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
+import { JwtUserPayload } from './jwt-user.payload';
 
 /** Account role returned on merchant auth (store operator). */
 export const MERCHANT_ACCOUNT_ROLE = 'admin' as const;
@@ -26,10 +27,166 @@ export const DRIVER_ACCOUNT_ROLE = 'driver' as const;
 
 @Injectable()
 export class AuthService {
+  private readonly jwtSecret = process.env.JWT_SECRET ?? 'dev-secret-change-me';
+  private readonly jwtAccessExpiresIn =
+    process.env.JWT_ACCESS_EXPIRES_IN ?? '1h';
+  private readonly jwtRefreshExpiresIn =
+    process.env.JWT_REFRESH_EXPIRES_IN ?? '30d';
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
   ) {}
+
+  private async signAccessToken(payload: JwtUserPayload): Promise<string> {
+    return this.jwtService.signAsync(
+      { ...payload, typ: 'access' as const },
+      {
+        secret: this.jwtSecret,
+        expiresIn: this.jwtAccessExpiresIn as JwtSignOptions['expiresIn'],
+      },
+    );
+  }
+
+  private async signRefreshToken(
+    args:
+      | { sub: string; role: 'SUPER_ADMIN' | 'USER' | 'DRIVER' }
+      | { sub: string; role: 'MERCHANT'; merchantId: string },
+  ): Promise<string> {
+    const body =
+      args.role === 'MERCHANT'
+        ? {
+            sub: args.sub,
+            role: args.role,
+            typ: 'refresh' as const,
+            merchantId: args.merchantId,
+          }
+        : {
+            sub: args.sub,
+            role: args.role,
+            typ: 'refresh' as const,
+          };
+    return this.jwtService.signAsync(body, {
+      secret: this.jwtSecret,
+      expiresIn: this.jwtRefreshExpiresIn as JwtSignOptions['expiresIn'],
+    });
+  }
+
+  private async issueTokenPair(
+    accessPayload: JwtUserPayload,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    const refreshArgs =
+      accessPayload.role === 'MERCHANT'
+        ? {
+            sub: accessPayload.sub,
+            role: accessPayload.role,
+            merchantId: accessPayload.merchantId,
+          }
+        : {
+            sub: accessPayload.sub,
+            role: accessPayload.role,
+          };
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.signAccessToken(accessPayload),
+      this.signRefreshToken(refreshArgs),
+    ]);
+    return { accessToken, refreshToken };
+  }
+
+  /**
+   * Exchange a valid refresh JWT for a new access + refresh pair.
+   * Rejects access tokens and inactive or missing accounts.
+   */
+  async refreshTokens(refreshToken: string) {
+    let decoded: unknown;
+    try {
+      decoded = await this.jwtService.verifyAsync(refreshToken, {
+        secret: this.jwtSecret,
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+    if (!decoded || typeof decoded !== 'object') {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    const p = decoded as Record<string, unknown>;
+    if (p.typ !== 'refresh') {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    const sub = p.sub;
+    const role = p.role;
+    if (typeof sub !== 'string' || typeof role !== 'string') {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    if (role === 'SUPER_ADMIN') {
+      const admin = await this.prisma.superAdmin.findFirst({
+        where: { id: sub, isActive: true },
+        select: { id: true, email: true },
+      });
+      if (!admin) {
+        throw new UnauthorizedException('Account not found or inactive');
+      }
+      return this.issueTokenPair({
+        sub: admin.id,
+        email: admin.email,
+        role: 'SUPER_ADMIN',
+      });
+    }
+
+    if (role === 'MERCHANT') {
+      const merchantId = p.merchantId;
+      if (typeof merchantId !== 'string' || merchantId !== sub) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+      const merchant = await this.prisma.merchant.findFirst({
+        where: { id: sub, isActive: true },
+        select: { id: true, email: true },
+      });
+      if (!merchant?.email) {
+        throw new UnauthorizedException('Account not found or inactive');
+      }
+      return this.issueTokenPair({
+        sub: merchant.id,
+        email: merchant.email,
+        role: 'MERCHANT',
+        merchantId: merchant.id,
+      });
+    }
+
+    if (role === 'USER') {
+      const user = await this.prisma.user.findFirst({
+        where: { id: sub, isActive: true },
+        select: { id: true, email: true, phone: true },
+      });
+      if (!user) {
+        throw new UnauthorizedException('Account not found or inactive');
+      }
+      return this.issueTokenPair({
+        sub: user.id,
+        email: user.email ?? user.phone,
+        role: 'USER',
+      });
+    }
+
+    if (role === 'DRIVER') {
+      const driver = await this.prisma.driver.findFirst({
+        where: { id: sub, isActive: true },
+        select: { id: true, email: true, phone: true },
+      });
+      if (!driver) {
+        throw new UnauthorizedException('Account not found or inactive');
+      }
+      return this.issueTokenPair({
+        sub: driver.id,
+        email: driver.email ?? driver.phone,
+        role: 'DRIVER',
+      });
+    }
+
+    throw new UnauthorizedException('Invalid refresh token');
+  }
 
   async registerSuperAdmin(dto: RegisterSuperAdminDto) {
     const existing = await this.prisma.superAdmin.findFirst({
@@ -40,7 +197,9 @@ export class AuthService {
     });
 
     if (existing) {
-      throw new BadRequestException('Super admin with email or phone already exists');
+      throw new BadRequestException(
+        'Super admin with email or phone already exists',
+      );
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -59,9 +218,17 @@ export class AuthService {
       },
     });
 
+    const { accessToken, refreshToken } = await this.issueTokenPair({
+      sub: admin.id,
+      email: admin.email,
+      role: 'SUPER_ADMIN',
+    });
+
     return {
       ...admin,
       role: SUPER_ADMIN_ACCOUNT_ROLE,
+      accessToken,
+      refreshToken,
     };
   }
 
@@ -82,7 +249,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const accessToken = await this.jwtService.signAsync({
+    const { accessToken, refreshToken } = await this.issueTokenPair({
       sub: admin.id,
       email: admin.email,
       role: 'SUPER_ADMIN',
@@ -90,6 +257,7 @@ export class AuthService {
 
     return {
       accessToken,
+      refreshToken,
       admin: {
         id: admin.id,
         fullName: admin.fullName,
@@ -113,7 +281,9 @@ export class AuthService {
     });
 
     if (existing) {
-      throw new BadRequestException('A merchant with this email or phone already exists');
+      throw new BadRequestException(
+        'A merchant with this email or phone already exists',
+      );
     }
 
     const merchantTypeId = await this.resolveMerchantTypeIdForRegister(dto);
@@ -143,7 +313,7 @@ export class AuthService {
       },
     });
 
-    const accessToken = await this.jwtService.signAsync({
+    const { accessToken, refreshToken } = await this.issueTokenPair({
       sub: merchant.id,
       email: merchant.email!,
       role: 'MERCHANT',
@@ -152,6 +322,7 @@ export class AuthService {
 
     return {
       accessToken,
+      refreshToken,
       merchant: {
         id: merchant.id,
         name: merchant.name,
@@ -237,7 +408,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const accessToken = await this.jwtService.signAsync({
+    const { accessToken, refreshToken } = await this.issueTokenPair({
       sub: merchant.id,
       email: merchant.email!,
       role: 'MERCHANT',
@@ -246,6 +417,7 @@ export class AuthService {
 
     return {
       accessToken,
+      refreshToken,
       merchant: {
         id: merchant.id,
         name: merchant.name,
@@ -273,7 +445,9 @@ export class AuthService {
     });
 
     if (existing) {
-      throw new BadRequestException('A user with this phone or email already exists');
+      throw new BadRequestException(
+        'A user with this phone or email already exists',
+      );
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -295,7 +469,7 @@ export class AuthService {
       },
     });
 
-    const accessToken = await this.jwtService.signAsync({
+    const { accessToken, refreshToken } = await this.issueTokenPair({
       sub: user.id,
       email: user.email ?? user.phone,
       role: 'USER',
@@ -303,6 +477,7 @@ export class AuthService {
 
     return {
       accessToken,
+      refreshToken,
       user: {
         ...user,
         role: USER_ACCOUNT_ROLE,
@@ -327,7 +502,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const accessToken = await this.jwtService.signAsync({
+    const { accessToken, refreshToken } = await this.issueTokenPair({
       sub: appUser.id,
       email: appUser.email ?? appUser.phone,
       role: 'USER',
@@ -335,6 +510,7 @@ export class AuthService {
 
     return {
       accessToken,
+      refreshToken,
       user: {
         id: appUser.id,
         fullName: appUser.fullName,
@@ -386,7 +562,7 @@ export class AuthService {
     if (appUser) {
       const ok = await bcrypt.compare(dto.password, appUser.passwordHash);
       if (ok) {
-        const accessToken = await this.jwtService.signAsync({
+        const { accessToken, refreshToken } = await this.issueTokenPair({
           sub: appUser.id,
           email: appUser.email ?? appUser.phone,
           role: 'USER',
@@ -394,6 +570,7 @@ export class AuthService {
         return {
           accountType: 'user' as const,
           accessToken,
+          refreshToken,
           user: {
             id: appUser.id,
             fullName: appUser.fullName,
@@ -411,7 +588,7 @@ export class AuthService {
     if (driver) {
       const ok = await bcrypt.compare(dto.password, driver.passwordHash);
       if (ok) {
-        const accessToken = await this.jwtService.signAsync({
+        const { accessToken, refreshToken } = await this.issueTokenPair({
           sub: driver.id,
           email: driver.email ?? driver.phone,
           role: 'DRIVER',
@@ -419,6 +596,7 @@ export class AuthService {
         return {
           accountType: 'driver' as const,
           accessToken,
+          refreshToken,
           driver: {
             id: driver.id,
             fullName: driver.fullName,
@@ -479,7 +657,7 @@ export class AuthService {
       },
     });
 
-    const accessToken = await this.jwtService.signAsync({
+    const { accessToken, refreshToken } = await this.issueTokenPair({
       sub: driver.id,
       email: driver.email ?? driver.phone,
       role: 'DRIVER',
@@ -487,6 +665,7 @@ export class AuthService {
 
     return {
       accessToken,
+      refreshToken,
       driver: {
         ...driver,
         role: DRIVER_ACCOUNT_ROLE,
@@ -511,7 +690,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const accessToken = await this.jwtService.signAsync({
+    const { accessToken, refreshToken } = await this.issueTokenPair({
       sub: driver.id,
       email: driver.email ?? driver.phone,
       role: 'DRIVER',
@@ -519,6 +698,7 @@ export class AuthService {
 
     return {
       accessToken,
+      refreshToken,
       driver: {
         id: driver.id,
         fullName: driver.fullName,

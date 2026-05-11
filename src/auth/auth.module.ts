@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
+import { JwtModule, type JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { CloudinaryService } from '../common/cloudinary.service';
 import { PrismaModule } from '../prisma/prisma.module';
@@ -8,6 +8,7 @@ import { AuthSuperAdminController } from './auth-super-admin.controller';
 import { AuthAppController } from './auth-app.controller';
 import { AuthDriverController } from './auth-driver.controller';
 import { AuthUserController } from './auth-user.controller';
+import { AuthRefreshController } from './auth-refresh.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { MerchantJwtScopeGuard } from './merchant-jwt-scope.guard';
@@ -22,7 +23,10 @@ import { UserAccountGuard } from './user-account.guard';
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET ?? 'dev-secret-change-me',
-      signOptions: { expiresIn: '7d' },
+      signOptions: {
+        expiresIn: (process.env.JWT_ACCESS_EXPIRES_IN ??
+          '1h') as JwtSignOptions['expiresIn'],
+      },
     }),
   ],
   controllers: [
@@ -31,6 +35,7 @@ import { UserAccountGuard } from './user-account.guard';
     AuthAppController,
     AuthUserController,
     AuthDriverController,
+    AuthRefreshController,
   ],
   providers: [
     AuthService,

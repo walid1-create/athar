@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { DriverAccountGuard } from '../auth/driver-account.guard';
+import { RegisterDriverDto } from '../auth/dto/register-driver.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SuperAdminGuard } from '../auth/super-admin.guard';
 import { JwtUserPayload } from '../auth/jwt-user.payload';
@@ -48,6 +50,18 @@ export class DriversController {
   ) {
     const user = req.user!;
     return this.driversService.updateProfile(user.sub, dto);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiOperation({
+    summary: 'Create a driver account (super admin only)',
+    description:
+      'Same body as POST /auth/driver/register. Returns the new driver profile; the driver logs in via POST /auth/driver/login or /auth/app/login.',
+  })
+  @Post()
+  createDriver(@Body() dto: RegisterDriverDto) {
+    return this.driversService.createByAdmin(dto);
   }
 
   @ApiBearerAuth()

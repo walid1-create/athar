@@ -8,6 +8,9 @@ function parseJwtPayload(payload: unknown): JwtUserPayload {
     throw new UnauthorizedException('Invalid token');
   }
   const p = payload as Record<string, unknown>;
+  if (p.typ === 'refresh') {
+    throw new UnauthorizedException('Use an access token, not a refresh token');
+  }
   const sub = p.sub;
   const email = p.email;
   const role = p.role;
