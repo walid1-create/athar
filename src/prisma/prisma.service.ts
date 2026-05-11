@@ -99,10 +99,11 @@ export class PrismaService extends PrismaClient {
   }
 
   static create(): PrismaService {
-    const connectionString = process.env.DATABASE_URL;
+    const connectionString =
+      process.env.DATABASE_PUBLIC_URL?.trim() || process.env.DATABASE_URL;
     if (!connectionString) {
       throw new Error(
-        'DATABASE_URL is not set. Add it to your .env file (PostgreSQL connection string).',
+        'Set DATABASE_URL (and optionally DATABASE_PUBLIC_URL for local dev / Railway proxy) in your .env.',
       );
     }
 

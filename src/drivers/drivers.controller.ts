@@ -57,7 +57,7 @@ export class DriversController {
   @ApiOperation({
     summary: 'Create a driver account (super admin only)',
     description:
-      'Same body as POST /auth/driver/register. Returns the new driver profile; the driver logs in via POST /auth/driver/login or /auth/app/login.',
+      'Drivers cannot self-register. Body: fullName, phone, password, optional email/vehicleType/status. Returns the new driver profile; the driver signs in via POST /auth/driver/login or POST /auth/app/login.',
   })
   @Post()
   createDriver(@Body() dto: RegisterDriverDto) {

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -52,6 +53,15 @@ export class DriversService {
 
   /** Super admin: create a driver account (driver signs in with the given password). */
   async createByAdmin(dto: RegisterDriverDto) {
+    const platformAdmins = await this.prisma.superAdmin.count({
+      where: { isActive: true },
+    });
+    if (platformAdmins === 0) {
+      throw new ForbiddenException(
+        'Create an active platform super admin before adding drivers.',
+      );
+    }
+
     const orConditions: { email?: string; phone?: string }[] = [
       { phone: dto.phone },
     ];

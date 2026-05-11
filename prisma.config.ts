@@ -9,6 +9,9 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Railway: internal hostname only works inside their network. Use public proxy locally.
+    url:
+      process.env["DATABASE_PUBLIC_URL"]?.trim() ||
+      process.env["DATABASE_URL"],
   },
 });

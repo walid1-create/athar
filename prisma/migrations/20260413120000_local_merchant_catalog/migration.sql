@@ -1,4 +1,6 @@
 -- Catalog stored locally (merchant -> categories -> products -> product images)
+-- init_tables omitted website_url; add before legacy default (removed in a later migration)
+ALTER TABLE "merchants" ADD COLUMN IF NOT EXISTS "website_url" VARCHAR(500);
 ALTER TABLE "merchants" ALTER COLUMN "website_url" SET DEFAULT '';
 
 CREATE TABLE "merchant_categories" (

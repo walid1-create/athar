@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -12,7 +13,6 @@ import { LoginDriverDto } from './dto/login-driver.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { RegisterMerchantDto } from './dto/register-merchant.dto';
 import { RegisterSuperAdminDto } from './dto/register-super-admin.dto';
-import { RegisterDriverDto } from './dto/register-driver.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { JwtUserPayload } from './jwt-user.payload';
 
@@ -189,6 +189,13 @@ export class AuthService {
   }
 
   async registerSuperAdmin(dto: RegisterSuperAdminDto) {
+    const platformAdminCount = await this.prisma.superAdmin.count();
+    if (platformAdminCount > 0) {
+      throw new ForbiddenException(
+        'A platform administrator already exists. Sign in or add staff through the admin console.',
+      );
+    }
+
     const existing = await this.prisma.superAdmin.findFirst({
       where: {
         OR: [{ email: dto.email }, { phone: dto.phone }],
@@ -614,63 +621,6 @@ export class AuthService {
     }
 
     throw new UnauthorizedException('Invalid credentials');
-  }
-
-  async registerDriver(dto: RegisterDriverDto) {
-    const orConditions: { email?: string; phone?: string }[] = [
-      { phone: dto.phone },
-    ];
-    if (dto.email) {
-      orConditions.push({ email: dto.email });
-    }
-    const existing = await this.prisma.driver.findFirst({
-      where: { OR: orConditions },
-      select: { id: true },
-    });
-
-    if (existing) {
-      throw new BadRequestException(
-        'A driver with this phone or email already exists',
-      );
-    }
-
-    const passwordHash = await bcrypt.hash(dto.password, 10);
-    const driver = await this.prisma.driver.create({
-      data: {
-        fullName: dto.fullName,
-        phone: dto.phone,
-        email: dto.email,
-        passwordHash,
-        vehicleType: dto.vehicleType,
-        status: dto.status,
-      },
-      select: {
-        id: true,
-        fullName: true,
-        phone: true,
-        email: true,
-        vehicleType: true,
-        status: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    const { accessToken, refreshToken } = await this.issueTokenPair({
-      sub: driver.id,
-      email: driver.email ?? driver.phone,
-      role: 'DRIVER',
-    });
-
-    return {
-      accessToken,
-      refreshToken,
-      driver: {
-        ...driver,
-        role: DRIVER_ACCOUNT_ROLE,
-      },
-    };
   }
 
   async loginDriver(dto: LoginDriverDto) {

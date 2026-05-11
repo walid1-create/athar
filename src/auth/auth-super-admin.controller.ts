@@ -9,7 +9,11 @@ import { RegisterSuperAdminDto } from './dto/register-super-admin.dto';
 export class AuthSuperAdminController {
   constructor(private readonly authService: AuthService) {}
 
-  @ApiOperation({ summary: 'Register super admin' })
+  @ApiOperation({
+    summary: 'Bootstrap: register the first platform super admin',
+    description:
+      'Allowed only while no super admin row exists. Further accounts must be added in the database or by a future invite flow.',
+  })
   @Post('super-admin/register')
   registerSuperAdmin(@Body() dto: RegisterSuperAdminDto) {
     return this.authService.registerSuperAdmin(dto);
